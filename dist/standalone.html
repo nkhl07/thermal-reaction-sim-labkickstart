@@ -1,0 +1,1324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Temperature Sim — LABKickstart</title>
+<style>
+  :root {
+    --paper: #f4f5f2;
+    --paper-2: #eceee8;
+    --ink: #1a1c1a;
+    --ink-soft: #55574f;
+    --line: #cfd2c8;
+    --line-strong: #b7bcac;
+    --red: #a8311c;
+    --blue: #1c4ea8;
+    --green: #1c7a3c;
+    --ochre: #c6952a;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    --sans: "Helvetica Neue", Arial, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 14px;
+    background-image:
+      linear-gradient(var(--paper-2) 1px, transparent 1px),
+      linear-gradient(90deg, var(--paper-2) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 18px 20px 40px; }
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 10px; margin-bottom: 16px; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; letter-spacing: .02em; margin: 0; text-transform: uppercase; }
+  header .sub { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); }
+  header .badge { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--ink-soft); border: 1px solid var(--line-strong); padding: 2px 8px; border-radius: 2px; }
+
+  .grid { display: block; }
+
+  .panel { background: rgba(255,255,255,.55); border: 1px solid var(--line-strong); border-radius: 3px; }
+  .panel h2 { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-soft); margin: 0; padding: 8px 10px; border-bottom: 1px solid var(--line); display: flex; align-items: baseline; gap: 10px; }
+  .panel h2 .note { margin-left: auto; text-transform: none; letter-spacing: 0; font-family: var(--mono); font-size: 10.5px; color: var(--ink-soft); font-weight: 400; }
+
+  .stage { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  /* On wide screens, sit the chart beside the bench so the graph is always in
+     view without scrolling or zooming the page out. */
+  @media (min-width: 980px) {
+    .stage {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-areas:
+        "scene    chart"
+        "controls controls";
+      align-items: start;
+    }
+    .scene-panel    { grid-area: scene; }
+    /* Controls span the full width beneath the bench + chart, so per-item cards
+       lay out horizontally across many columns instead of stacking. */
+    .controls-panel { grid-area: controls; }
+    .chart-panel    { grid-area: chart; position: sticky; top: 12px; align-self: start; }
+  }
+  .scene-panel { position: relative; }
+  #scene { display: block; width: 100%; height: auto; background:
+      radial-gradient(120% 90% at 50% 0%, #fbfbf9 0%, #eef0ea 100%); border-radius: 0 0 3px 3px; touch-action: none; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 12px 24px; padding: 12px; }
+  .ctrl { display: flex; flex-direction: column; gap: 5px; }
+  .ctrl label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); display: flex; justify-content: space-between; }
+  .ctrl label b { color: var(--ink); font-family: var(--mono); font-weight: 600; }
+  input[type=range] { width: 100%; accent-color: var(--red); }
+  .btnrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button {
+    font-family: var(--mono); font-size: 12px; padding: 7px 12px; border: 1px solid var(--ink); background: var(--paper);
+    color: var(--ink); border-radius: 3px; cursor: pointer;
+  }
+  button:hover { background: var(--paper-2); }
+  button.primary { background: var(--ink); color: var(--paper); }
+  button.primary:hover { background: #333; }
+  .seg { display: inline-flex; border: 1px solid var(--ink); border-radius: 3px; overflow: hidden; }
+  .seg button { border: none; border-right: 1px solid var(--line-strong); border-radius: 0; }
+  .seg button:last-child { border-right: none; }
+  .seg button.on { background: var(--red); color: #fff; }
+
+  /* Dynamic per-item control cards: one appears for each item on the bench. */
+  .item-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 10px; padding: 0 12px 12px; }
+  .item-controls:empty { display: none; }
+  .item-card { border: 1px solid var(--line); border-radius: 3px; padding: 8px 10px 10px; background: rgba(255,255,255,.5); display: flex; flex-direction: column; gap: 7px; }
+  .item-card .item-head { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--ink); }
+  .item-card .item-head .swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+  .item-card .item-head .mini { margin-left: auto; font-size: 10px; padding: 3px 9px; }
+  .item-card .item-head .mini.on { background: var(--red); color: #fff; border-color: var(--red); }
+  .item-card .empty { font-family: var(--mono); font-size: 10px; color: var(--ink-soft); }
+
+  .chart-panel { position: relative; }
+  #chart { display: block; width: 100%; height: auto; background: #fbfcfa; border-radius: 0 0 3px 3px; }
+  .readouts { display: flex; gap: 18px; padding: 8px 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12px; }
+  .readouts .r { display: flex; align-items: center; gap: 6px; }
+  .readouts .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .readouts .val { font-weight: 700; }
+  footer { margin-top: 18px; font-family: var(--mono); font-size: 11px; color: var(--ink-soft); line-height: 1.5; }
+  .kbd { border: 1px solid var(--line-strong); border-radius: 2px; padding: 0 4px; background: var(--paper); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Temperature Sim</h1>
+    <span class="sub">thermal physics sandbox · v1</span>
+    <span class="badge" id="clock">t = 0.0 s</span>
+  </header>
+
+  <div class="grid">
+    <!-- STAGE -->
+    <div class="stage">
+      <div class="panel scene-panel">
+        <h2>Bench · side view <span class="note">Drag up from the supply shelf onto the bench · drag an item back down to remove it</span></h2>
+        <canvas id="scene" width="720" height="470"></canvas>
+      </div>
+
+      <div class="panel controls-panel">
+        <h2>Controls</h2>
+        <div class="controls">
+          <div class="ctrl">
+            <label>Run</label>
+            <div class="btnrow">
+              <button id="play" class="primary">▶ Play</button>
+              <div class="seg" id="speed">
+                <button data-x="1" class="on">1×</button>
+                <button data-x="10">10×</button>
+                <button data-x="60">60×</button>
+              </div>
+            </div>
+          </div>
+          <div class="ctrl">
+            <label>Data</label>
+            <div class="btnrow">
+              <button id="reset">Reset run</button>
+              <button id="csv">Export CSV</button>
+            </div>
+          </div>
+        </div>
+        <!-- Per-item sliders are generated here as items are placed on the bench. -->
+        <div class="item-controls" id="itemControls"></div>
+      </div>
+
+      <div class="panel chart-panel">
+        <h2>Temperature vs time · <span style="font-family:var(--mono);text-transform:none;letter-spacing:0">temp_c</span> (°C)</h2>
+        <div class="readouts" id="readouts"></div>
+        <canvas id="chart" width="720" height="300"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Lumped-mass thermal model with latent-heat plateaus (fusion 334 kJ/kg, vaporisation 2 260 kJ/kg). Probe first-order lag &tau; = 3 s.
+    Output channel <span class="kbd">temp_c</span> in °C, sampled at 4 Hz. Physics core is headless and unit-tested (<span class="kbd">node --test</span>).
+  </footer>
+</div>
+
+<script type="module">
+/* --- inlined thermal-sim.js core --- */
+// thermal-sim.js
+// Headless thermal-physics core for the LABKickstart Temperature Sim.
+//
+// No DOM, no rendering, no timers. A pure model you advance with step(dt).
+// The rendering layer (index.html) and the unit tests (thermal-sim.test.js)
+// both drive this same object. Keeping it headless is what lets the physics
+// be unit-tested with no browser, and what lets the sim drop into a dashboard
+// later without untangling physics from <canvas> calls.
+//
+// Units are SI throughout: kilograms, seconds, joules, watts, kelvin for
+// differences, degrees Celsius for absolute temperatures (because that is what
+// the real probe hardware reports, on a channel it calls `temp_c`).
+
+// --- Material constants (from the build brief, section 2) -------------------
+
+const C = {
+  WATER: 4186,     // specific heat of liquid water, J/(kg K)
+  ICE: 2090,       // specific heat of ice,          J/(kg K)
+  STEAM: 2010,     // specific heat of steam,         J/(kg K)
+  GLASS: 840,      // specific heat of glass,         J/(kg K)  (available, unused in v1)
+  L_FUSION: 334000,    // latent heat of fusion (melt/freeze),  J/kg
+  L_VAPOR: 2260000,    // latent heat of vaporisation (boil),   J/kg
+  MELT_C: 0,       // melting point,  degrees C
+  BOIL_C: 100,     // boiling point,  degrees C
+  AMBIENT_C: 22,   // room temperature, degrees C
+};
+
+const specificHeat = (phase) =>
+  phase === 'solid' ? C.ICE : phase === 'gas' ? C.STEAM : C.WATER;
+
+let _nextId = 1;
+const newId = () => _nextId++;
+
+// --- Bodies -----------------------------------------------------------------
+//
+// A thermal body is a lumped mass at a single uniform temperature. Water, ice
+// and steam are all the same substance (H2O) in different phases; a body knows
+// its phase and picks the right specific heat. Phase change moves *mass*
+// between bodies (ice melts into the water it sits in, water boils off into
+// steam) while temperature stays pinned at the transition point. That mass
+// transfer, held at a constant temperature, is what draws the flat plateaus.
+
+class Body {
+  constructor(spec) {
+    this.id = spec.id ?? newId();
+    this.type = spec.type;              // 'water' | 'ice' | 'steam' | 'hotplate' | 'beaker'
+    this.mass = spec.mass ?? 0;         // kg
+    this.temp = spec.T ?? C.AMBIENT_C;  // degrees C
+    this.phase = spec.phase ?? phaseForType(spec.type); // 'solid'|'liquid'|'gas'|null
+    this.hA = spec.hA ?? 0;             // Newton-cooling coefficient h*A, W/K (0 = insulated)
+    this.watts = spec.watts ?? 0;       // hotplate power, W
+    this.on = spec.on ?? true;          // hotplate on/off
+    // Rendering/UI metadata; the physics never reads these.
+    this.contained = spec.contained ?? (spec.type === 'beaker' || spec.type === 'water');
+    this.label = spec.label ?? spec.type;
+  }
+
+  get isThermal() {
+    return this.type === 'water' || this.type === 'ice' || this.type === 'steam';
+  }
+
+  get c() {
+    return specificHeat(this.phase);
+  }
+
+  // Total heat capacity, J/K. Zero-mass bodies are inert (no divide-by-zero).
+  get heatCapacity() {
+    return this.mass * this.c;
+  }
+}
+
+function phaseForType(type) {
+  if (type === 'ice') return 'solid';
+  if (type === 'steam') return 'gas';
+  if (type === 'water' || type === 'beaker') return 'liquid';
+  return null; // hotplate
+}
+
+// --- Probe ------------------------------------------------------------------
+//
+// A real thermistor does not read the true temperature instantly; it has its
+// own thermal mass and lags by a few seconds. We model that as a first-order
+// lag toward whatever the probe is currently immersed in. This is honest: the
+// instrument is part of the experiment, and a student using the real hardware
+// sees the same lag.
+
+class Probe {
+  constructor(spec, ambientC) {
+    this.id = spec.id ?? newId();
+    this.tau = spec.tau ?? 3;                 // time constant, seconds
+    this.target = spec.target ?? null;        // body id, or null => ambient
+    this.temp = spec.T ?? ambientC;           // current reading, degrees C
+  }
+
+  // The channel name and unit the real hardware uses. Do not rename.
+  get temp_c() {
+    return this.temp;
+  }
+}
+
+// --- Simulation -------------------------------------------------------------
+
+class ThermalSim {
+  constructor(opts = {}) {
+    this.ambientC = opts.ambient_c ?? C.AMBIENT_C;
+    this.maxSubStep = opts.max_substep ?? 0.05; // s; internal integration step for stability
+    this.time = 0;                              // simulated seconds elapsed
+    this.bodies = [];
+    this.probes = [];
+    this.contacts = [];                         // { a, b, G }  conductance G in W/K
+  }
+
+  // Add a body. Returns its id.
+  //   { type:'beaker', water_kg, T, hA }   -> a liquid water body (the contents)
+  //   { type:'ice',    kg, T, hA }         -> an ice body
+  //   { type:'hotplate', watts, on }       -> a heat source
+  //   { type:'steam',  kg, T }             -> steam (usually created by boiling)
+  add(spec) {
+    let body;
+    if (spec.type === 'beaker') {
+      body = new Body({ ...spec, type: 'water', mass: spec.water_kg ?? spec.kg ?? 0, contained: true, label: 'water' });
+    } else if (spec.type === 'ice' || spec.type === 'water' || spec.type === 'steam') {
+      body = new Body({ ...spec, mass: spec.kg ?? spec.mass ?? 0, T: spec.T ?? (spec.type === 'ice' ? 0 : this.ambientC) });
+    } else if (spec.type === 'hotplate') {
+      body = new Body({ ...spec });
+    } else {
+      throw new Error(`unknown body type: ${spec.type}`);
+    }
+    this.bodies.push(body);
+    return body.id;
+  }
+
+  get(id) {
+    return this.bodies.find((b) => b.id === id) ?? null;
+  }
+
+  remove(id) {
+    this.bodies = this.bodies.filter((b) => b.id !== id);
+    this.contacts = this.contacts.filter((k) => k.a !== id && k.b !== id);
+  }
+
+  // Declare that two bodies are touching, with a thermal conductance G (W/K).
+  // A hotplate-to-water contact delivers the plate's wattage; any other pair
+  // exchanges heat by conduction toward equilibrium. In the UI these are
+  // recomputed every frame from object positions; in tests they are explicit.
+  link(a, b, G = 25) {
+    this.contacts.push({ a, b, G });
+  }
+
+  // Replace all contacts at once (what the UI does each frame after hit-testing).
+  setContacts(list) {
+    this.contacts = list.map((k) => ({ a: k.a, b: k.b, G: k.G ?? 25 }));
+  }
+
+  // Probes ------------------------------------------------------------------
+  addProbe(spec = {}) {
+    const p = new Probe(spec, this.ambientC);
+    this.probes.push(p);
+    return this.probes.length - 1;
+  }
+
+  probe(i) {
+    return this.probes[i];
+  }
+
+  // Point probe i at a body id, or null for ambient air.
+  setProbeTarget(i, target) {
+    if (this.probes[i]) this.probes[i].target = target;
+  }
+
+  // Advance the physics by `dt` seconds of *simulated* time. Callers pass
+  // real-frame-dt * speed; we sub-step internally so time acceleration never
+  // destabilises the integration.
+  step(dt) {
+    let remaining = dt;
+    while (remaining > 1e-9) {
+      const h = Math.min(this.maxSubStep, remaining);
+      this._substep(h);
+      remaining -= h;
+    }
+    return this;
+  }
+
+  _substep(dt) {
+    // 1. Accumulate the net heat into each thermal body over this sub-step.
+    const heat = new Map(); // body id -> joules this sub-step
+    const add = (id, q) => heat.set(id, (heat.get(id) ?? 0) + q);
+
+    // Contacts: hotplate power, or conduction between thermal bodies.
+    for (const { a, b, G } of this.contacts) {
+      const ba = this.get(a);
+      const bb = this.get(b);
+      if (!ba || !bb) continue;
+
+      const plate = ba.type === 'hotplate' ? ba : bb.type === 'hotplate' ? bb : null;
+      const sink = plate === ba ? bb : ba;
+      if (plate) {
+        if (plate.on && sink.isThermal) add(sink.id, plate.watts * dt);
+        continue;
+      }
+      if (ba.isThermal && bb.isThermal) {
+        // Conductive flow from hotter to colder; converges to the mcΔT mix.
+        const q = G * (ba.temp - bb.temp) * dt;
+        add(ba.id, -q);
+        add(bb.id, q);
+      }
+    }
+
+    // Ambient loss (Newton's cooling) for every exposed thermal body.
+    for (const body of this.bodies) {
+      if (!body.isThermal || body.hA <= 0) continue;
+      add(body.id, -body.hA * (body.temp - this.ambientC) * dt);
+    }
+
+    // 2. Apply the heat, letting each body handle its own phase transitions.
+    //    Snapshot the list because melting/boiling can spawn new bodies.
+    const snapshot = [...this.bodies];
+    for (const body of snapshot) {
+      if (!body.isThermal) continue;
+      const q = heat.get(body.id) ?? 0;
+      this._applyHeat(body, q);
+    }
+
+    // 3. Drop any bodies that have fully changed phase away to nothing.
+    this.bodies = this.bodies.filter((b) => !(b.isThermal && b.mass <= 1e-9));
+
+    // 4. Update probe readings with first-order lag.
+    for (const p of this.probes) {
+      const targetTemp = p.target == null ? this.ambientC : (this.get(p.target)?.temp ?? this.ambientC);
+      p.temp += ((targetTemp - p.temp) / p.tau) * dt;
+    }
+
+    this.time += dt;
+  }
+
+  // Apply q joules to a single body, respecting phase-change plateaus.
+  // Temperature never crosses a transition point in one step: the crossing
+  // energy is redirected into melting or boiling instead.
+  _applyHeat(body, q) {
+    if (body.heatCapacity <= 0) return;
+
+    if (body.phase === 'solid') this._applyToIce(body, q);
+    else if (body.phase === 'liquid') this._applyToWater(body, q);
+    else this._applyToSteam(body, q);
+  }
+
+  _applyToIce(body, q) {
+    // Warm the ice toward 0 C. Any energy beyond that melts it (at a fixed 0 C).
+    if (q <= 0 || body.temp < C.MELT_C) {
+      const toMelt = body.mass * C.ICE * (C.MELT_C - body.temp); // J to reach 0 C
+      if (q <= toMelt) {
+        body.temp += q / (body.mass * C.ICE);
+        return;
+      }
+      body.temp = C.MELT_C;
+      q -= toMelt;
+    }
+    // At 0 C, remaining energy melts ice into water (mass transfer, temp pinned).
+    const dm = Math.min(body.mass, q / C.L_FUSION);
+    body.mass -= dm;
+    this._depositMeltwater(body, dm);
+    // Leftover after melting everything superheats the resulting water.
+    if (body.mass <= 1e-9) {
+      const leftover = q - dm * C.L_FUSION;
+      const water = this._meltTarget(body);
+      if (water && leftover > 0 && water.mass > 0) {
+        water.temp += leftover / (water.mass * C.WATER);
+      }
+    }
+  }
+
+  _applyToWater(body, q) {
+    const cap = body.mass * C.WATER;
+    if (q >= 0 && body.temp >= C.BOIL_C) {
+      this._boil(body, q);
+      return;
+    }
+    if (q < 0 && body.temp <= C.MELT_C) {
+      // Colder than freezing has no source in v1; equilibrium floors at 0 C.
+      body.temp = C.MELT_C;
+      return;
+    }
+    if (q > 0) {
+      const toBoil = cap * (C.BOIL_C - body.temp); // J to reach 100 C
+      if (q <= toBoil) {
+        body.temp += q / cap;
+        return;
+      }
+      body.temp = C.BOIL_C;
+      this._boil(body, q - toBoil);
+    } else {
+      const toFreeze = cap * (body.temp - C.MELT_C); // J to reach 0 C (q is negative)
+      if (-q <= toFreeze) {
+        body.temp += q / cap;
+      } else {
+        body.temp = C.MELT_C; // floor; no active freezing in v1
+      }
+    }
+  }
+
+  // Boil q joules worth of water into steam at 100 C (mass transfer, temp pinned).
+  _boil(body, q) {
+    if (q <= 0) return;
+    const dm = Math.min(body.mass, q / C.L_VAPOR);
+    body.mass -= dm;
+    const steam = this._steamNode(body);
+    steam.mass += dm;
+    steam.temp = C.BOIL_C;
+    if (body.mass <= 1e-9) {
+      const leftover = q - dm * C.L_VAPOR;
+      if (leftover > 0 && steam.mass > 0) steam.temp += leftover / (steam.mass * C.STEAM);
+    }
+  }
+
+  _applyToSteam(body, q) {
+    body.temp += q / (body.mass * C.STEAM);
+    if (body.temp < C.BOIL_C) body.temp = C.BOIL_C; // v1 vents rather than re-condensing
+  }
+
+  // Where melting ice sends its water: a liquid body it is in contact with,
+  // else a fresh water body created in its place.
+  _meltTarget(iceBody) {
+    if (iceBody._meltTarget) return this.get(iceBody._meltTarget);
+    for (const { a, b } of this.contacts) {
+      const other = a === iceBody.id ? this.get(b) : b === iceBody.id ? this.get(a) : null;
+      if (other && other.type === 'water' && other.phase === 'liquid') {
+        iceBody._meltTarget = other.id;
+        return other;
+      }
+    }
+    return null;
+  }
+
+  _depositMeltwater(iceBody, dm) {
+    if (dm <= 0) return;
+    let water = this._meltTarget(iceBody);
+    if (!water) {
+      // No host water: the ice becomes its own puddle at 0 C.
+      const id = this.add({ type: 'water', kg: 0, T: C.MELT_C, hA: iceBody.hA });
+      water = this.get(id);
+      iceBody._meltTarget = id;
+    }
+    // Blend dm of 0 C meltwater into the host (energy-conserving mix).
+    const totalCap = water.mass + dm;
+    water.temp = totalCap > 0 ? (water.mass * water.temp + dm * C.MELT_C) / totalCap : C.MELT_C;
+    water.mass = totalCap;
+  }
+
+  _steamNode(waterBody) {
+    if (waterBody._steam && this.get(waterBody._steam)) return this.get(waterBody._steam);
+    const id = this.add({ type: 'steam', kg: 0, T: C.BOIL_C });
+    const node = this.get(id);
+    node._risenFrom = waterBody.id;
+    waterBody._steam = id;
+    return node;
+  }
+
+  // Convenience for reading the primary liquid body (used by the UI and the
+  // brief's illustrative snippet).
+  mainWater() {
+    return this.bodies.find((b) => b.type === 'water' && b.phase === 'liquid') ?? null;
+  }
+}
+
+
+
+/* --- end core --- */
+
+// ---------------------------------------------------------------------------
+// Scene model: screen-space objects, each backed by a headless sim body.
+// The physics never touches these coordinates; we derive contacts and probe
+// targets from geometry every frame and hand them to the sim.
+// ---------------------------------------------------------------------------
+
+const scene = document.getElementById('scene');
+const sctx = scene.getContext('2d');
+const W = scene.width, H = scene.height;
+
+// One font stack for all canvas text, matching the page's --mono CSS variable.
+const MONO = 'ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace';
+
+// Probe identity (colour + label) is by slot, so it stays correct when a probe
+// is removed and another added back from the shelf.
+const PROBE_COLORS = ['#a8311c', '#1c4ea8', '#1c7a3c'];
+const probeColor = (i) => PROBE_COLORS[i] ?? '#55574f';
+const probeLabel = (i) => 'P' + (i + 1);
+
+const BENCH_Y = 348;
+const PLATE = { x: 300, w: 168, h: 20, topY: 328 };
+const REF_FULL_KG = 0.5;          // water mass that fills the beaker to the brim
+const BEAKER = { w: 118, h: 156, wall: 7 };
+
+// Supply shelf: the "dock" lives inside the bench view now, as a tray under the
+// workbench. Each tile is a source you drag a fresh object up out of.
+const TILE = { w: 150, h: 78 };
+const SHELF_Y = 382;              // top of the tiles
+const palette = [
+  { kind: 'beaker', x: 100, label: 'Beaker + water' },
+  { kind: 'ice',    x: 285, label: 'Ice cube' },
+  { kind: 'probe',  x: 470, label: 'Probe' },
+  { kind: 'plate',  x: 640, label: 'Hot plate' },
+];
+function tileRect(t) {
+  return { left: t.x - TILE.w / 2, top: SHELF_Y, right: t.x + TILE.w / 2, bottom: SHELF_Y + TILE.h };
+}
+const MAX_PER_KIND = 3;           // up to three of each item on the bench
+function itemCount(kind) {
+  return kind === 'probe' ? probes.length : items.filter((i) => i.kind === kind).length;
+}
+function paletteEnabled(kind) { return itemCount(kind) < MAX_PER_KIND; }
+function tileAt(px, py) {
+  return palette.find((t) => { const r = tileRect(t); return px > r.left && px < r.right && py > r.top && py < r.bottom; }) ?? null;
+}
+
+let sim, items, probes, running = false, speed = 1;
+let samples = [];                 // { t, temps: [p0, p1] }
+let sampleAcc = 0;
+const SAMPLE_DT = 0.25;           // 4 Hz in simulated time
+
+// Per-item defaults for freshly placed objects.
+const DEF = { plate: { watts: 500, on: true }, beaker: { g: 200, c: 20 }, ice: { g: 50 } };
+let uidSeq = 0;
+const uid = () => ++uidSeq;       // stable id so each item keeps its own controls
+
+const ui = {
+  play: document.getElementById('play'),
+  clock: document.getElementById('clock'), readouts: document.getElementById('readouts'),
+};
+
+// A placed scene item. `body` is the sim body id (null for probes/plate handled separately).
+function buildScene() {
+  sim = new ThermalSim({ ambient_c: C.AMBIENT_C });
+  items = [];
+  probes = [];
+  samples = [];
+  sampleAcc = 0;
+
+  // A first hot plate on the bench. More can be dragged from the supply shelf.
+  const plateId = sim.add({ type: 'hotplate', watts: DEF.plate.watts, on: DEF.plate.on });
+  items.push({ kind: 'plate', body: plateId, x: PLATE.x, y: PLATE.topY, uid: uid(), watts: DEF.plate.watts, on: DEF.plate.on });
+
+  // Beaker of water, placed on the plate.
+  const beakerId = sim.add({ type: 'beaker', water_kg: DEF.beaker.g / 1000, T: DEF.beaker.c, hA: 0.9 });
+  items.push({ kind: 'beaker', body: beakerId, x: PLATE.x, y: PLATE.topY, onPlate: true, uid: uid(), waterG: DEF.beaker.g, startC: DEF.beaker.c });
+
+  // Two probes: one in the water, one in the air.
+  addProbe(PLATE.x, PLATE.topY - 70);          // dips into the water
+  addProbe(PLATE.x + 150, PLATE.topY - 40);     // out in the room air
+
+  renderControls();
+  syncReadouts();
+}
+
+function addProbe(x, y) {
+  const idx = sim.addProbe({ target: null, tau: 3, T: C.AMBIENT_C });
+  probes.push({ kind: 'probe', probeIdx: idx, x, y, uid: uid() });
+}
+
+// --- Geometry helpers ------------------------------------------------------
+
+function beakerGeom(it) {
+  const baseY = it.y;                    // beaker base sits at this y
+  const topY = baseY - BEAKER.h;
+  const left = it.x - BEAKER.w / 2;
+  const water = sim.get(it.body);
+  const mass = water ? water.mass : 0;
+  const fill = Math.min(1, mass / REF_FULL_KG);
+  const innerH = BEAKER.h - BEAKER.wall - 6;
+  const waterH = innerH * fill;
+  const waterTop = baseY - BEAKER.wall - waterH;
+  return { baseY, topY, left, right: left + BEAKER.w, cx: it.x, waterTop, waterBottom: baseY - BEAKER.wall, mass, fill };
+}
+
+function beakers() { return items.filter((i) => i.kind === 'beaker'); }
+function iceItems() { return items.filter((i) => i.kind === 'ice'); }
+function plates() { return items.filter((i) => i.kind === 'plate'); }
+// The seated hot plate whose top surface a given x sits over, if any. A plate
+// lifted mid-drag (y away from the bench) does not count.
+function plateUnder(x) {
+  return plates().find((p) => Math.abs(x - p.x) < PLATE.w / 2 && Math.abs(p.y - PLATE.topY) < 8) ?? null;
+}
+
+function pointInWater(px, py) {
+  for (const b of beakers()) {
+    const g = beakerGeom(b);
+    if (px > g.left + BEAKER.wall && px < g.right - BEAKER.wall && py > g.waterTop && py < g.waterBottom && g.mass > 1e-4)
+      return b.body;
+  }
+  return null;
+}
+
+function pointInIce(px, py) {
+  for (const it of items) {
+    if (it.kind !== 'ice') continue;
+    const s = iceSize(it);
+    if (Math.abs(px - it.x) < s / 2 && Math.abs(py - it.y) < s / 2) return it.body;
+  }
+  return null;
+}
+
+function steamFor(b) { return sim.bodies.find((x) => x.type === 'steam' && x._risenFrom === b.body) ?? null; }
+
+function pointInSteam(px, py) {
+  for (const b of beakers()) {
+    const water = sim.get(b.body);
+    const steam = steamFor(b);
+    const boiling = water && water.temp >= 99.5 && water.mass > 1e-4;
+    if (!boiling && !steam) continue;
+    const g = beakerGeom(b);
+    if (px > g.left - 10 && px < g.right + 10 && py < g.topY + 30 && py > g.topY - 90)
+      return steam ? steam.id : b.body;
+  }
+  return null;
+}
+
+function iceSize(it) {
+  const body = sim.get(it.body);
+  const kg = body ? body.mass : 0;
+  return 14 + 46 * Math.cbrt(Math.max(0, kg) / 0.2);   // shrinks as it melts
+}
+
+// --- Per-frame contact + probe-target wiring -------------------------------
+
+function wireContacts() {
+  const contacts = [];
+  // Each hot plate runs on its own power / on-off setting.
+  for (const p of plates()) {
+    const pb = sim.get(p.body); if (pb) { pb.watts = p.watts; pb.on = p.on; }
+  }
+
+  // A beaker draws power only while actually seated on a plate — not while it is
+  // lifted or floating above one.
+  for (const b of beakers()) {
+    const seated = Math.abs(b.y - PLATE.topY) < 8;
+    const p = seated ? plateUnder(b.x) : null;
+    b.onPlate = !!p;
+    if (p) contacts.push({ a: p.body, b: b.body, G: 30 });
+  }
+  // Ice exchanges heat with whichever beaker's water it is sitting in.
+  for (const it of items) {
+    if (it.kind !== 'ice') continue;
+    const host = pointInWater(it.x, it.y + 4) ?? pointInWater(it.x, it.y);
+    if (host) { contacts.push({ a: host, b: it.body, G: 45 }); it.inWater = true; it.host = host; }
+    else { it.inWater = false; it.host = null; }
+  }
+  sim.setContacts(contacts);
+
+  // Probe targets: whatever the tip is immersed in.
+  for (const pr of probes) {
+    const tip = probeTip(pr);
+    const t = pointInWater(tip.x, tip.y) ?? pointInIce(tip.x, tip.y) ?? pointInSteam(tip.x, tip.y) ?? null;
+    sim.setProbeTarget(pr.probeIdx, t);
+    pr.reads = t == null ? 'air' : (sim.get(t)?.type ?? 'air');
+  }
+}
+
+function probeTip(pr) { return { x: pr.x, y: pr.y + 46 }; }
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+
+function draw() {
+  sctx.clearRect(0, 0, W, H);
+  drawBench();
+  drawShelf();
+  for (const p of plates()) drawPlate(p);
+  for (const b of beakers()) drawBeaker(b);
+  for (const it of items) if (it.kind === 'ice' && !it.inWater) drawIce(it);
+  for (const pr of probes) drawProbe(pr);
+}
+
+function drawBench() {
+  // Tabletop slab with a front edge, so the bench reads as a solid surface.
+  const edge = 14;
+  sctx.fillStyle = '#d8d3c4';
+  sctx.fillRect(0, BENCH_Y, W, edge);
+  sctx.fillStyle = '#c7c1b0';
+  sctx.fillRect(0, BENCH_Y + edge, W, H - BENCH_Y - edge);
+  // top highlight + shadow line for depth
+  sctx.strokeStyle = '#efeadd'; sctx.lineWidth = 1;
+  sctx.beginPath(); sctx.moveTo(0, BENCH_Y + 0.5); sctx.lineTo(W, BENCH_Y + 0.5); sctx.stroke();
+  sctx.strokeStyle = '#a49d89'; sctx.lineWidth = 1;
+  sctx.beginPath(); sctx.moveTo(0, BENCH_Y + edge + 0.5); sctx.lineTo(W, BENCH_Y + edge + 0.5); sctx.stroke();
+}
+
+// The in-scene supply dock: a labelled tray of source tiles under the bench.
+function drawShelf() {
+  const deleting = !!(dragging && dragging.armed && dragging.overShelf);
+  // when an item is being dragged onto the shelf, tint the band to signal removal
+  if (deleting) {
+    sctx.fillStyle = 'rgba(168,49,28,0.10)';
+    sctx.fillRect(0, BENCH_Y + 14, W, H - BENCH_Y - 14);
+  }
+  sctx.textBaseline = 'alphabetic';
+  sctx.fillStyle = deleting ? '#a8311c' : '#8a8471';
+  sctx.font = `bold 10px ${MONO}`; sctx.textAlign = 'left';
+  sctx.fillText(deleting ? 'RELEASE TO REMOVE FROM BENCH' : 'SUPPLY SHELF — drag onto the bench', 24, SHELF_Y - 10);
+
+  for (const t of palette) {
+    const r = tileRect(t);
+    const on = paletteEnabled(t.kind);
+    sctx.globalAlpha = on ? 1 : 0.4;
+    // tile card
+    sctx.fillStyle = '#fbfbf9';
+    sctx.strokeStyle = on ? '#b7bcac' : '#cfd2c8'; sctx.lineWidth = 1.4;
+    sctx.beginPath(); sctx.roundRect(r.left, r.top, TILE.w, TILE.h, 5); sctx.fill(); sctx.stroke();
+    // icon on the left, label on the right
+    drawTileIcon(t.kind, r.left + 30, r.top + TILE.h / 2);
+    sctx.fillStyle = '#3a3d3a'; sctx.font = `11px ${MONO}`; sctx.textAlign = 'left'; sctx.textBaseline = 'middle';
+    sctx.fillText(t.label, r.left + 58, r.top + TILE.h / 2 - 7);
+    sctx.fillStyle = '#8a8471'; sctx.font = `9px ${MONO}`;
+    sctx.fillText(on ? `drag ↑   ${itemCount(t.kind)}/${MAX_PER_KIND}` : `max ${MAX_PER_KIND} — full`, r.left + 58, r.top + TILE.h / 2 + 9);
+    sctx.textBaseline = 'alphabetic';
+    sctx.globalAlpha = 1;
+  }
+}
+
+function drawTileIcon(kind, cx, cy) {
+  sctx.save();
+  sctx.translate(cx, cy);
+  if (kind === 'beaker') {
+    sctx.fillStyle = 'rgba(70,150,200,0.5)';
+    sctx.fillRect(-11, -2, 22, 16);
+    sctx.strokeStyle = 'rgba(60,70,70,0.7)'; sctx.lineWidth = 1.4;
+    sctx.strokeRect(-11, -14, 22, 28);
+  } else if (kind === 'ice') {
+    sctx.fillStyle = 'rgba(222,240,247,0.95)';
+    sctx.strokeStyle = 'rgba(150,190,215,0.9)'; sctx.lineWidth = 1.2;
+    sctx.beginPath(); sctx.roundRect(-11, -11, 22, 22, 3); sctx.fill(); sctx.stroke();
+    sctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    sctx.beginPath(); sctx.moveTo(-8, -8); sctx.lineTo(-8, 8); sctx.lineTo(8, 8); sctx.stroke();
+  } else if (kind === 'plate') {
+    // squat plate body with a glowing hot surface
+    sctx.fillStyle = '#3a3d3a';
+    sctx.beginPath(); sctx.roundRect(-14, -3, 28, 12, 2); sctx.fill();
+    sctx.fillStyle = '#e0552e';
+    sctx.beginPath(); sctx.ellipse(0, -3, 11, 3, 0, 0, Math.PI * 2); sctx.fill();
+  } else {
+    sctx.fillStyle = '#2b2e2b';
+    sctx.beginPath(); sctx.roundRect(-8, -14, 16, 12, 3); sctx.fill();
+    sctx.strokeStyle = '#a8311c'; sctx.lineWidth = 3;
+    sctx.beginPath(); sctx.moveTo(0, -2); sctx.lineTo(0, 12); sctx.stroke();
+    sctx.fillStyle = '#a8311c';
+    sctx.beginPath(); sctx.arc(0, 13, 4, 0, Math.PI * 2); sctx.fill();
+  }
+  sctx.restore();
+}
+
+function drawPlate(p) {
+  const x = p.x, topY = p.y;
+  // shadow
+  sctx.fillStyle = 'rgba(0,0,0,0.10)';
+  sctx.beginPath(); sctx.ellipse(x, BENCH_Y - 2, PLATE.w / 1.7, 7, 0, 0, Math.PI * 2); sctx.fill();
+  // body
+  sctx.fillStyle = '#3a3d3a';
+  sctx.beginPath(); sctx.roundRect(x - PLATE.w / 2, topY, PLATE.w, PLATE.h + 16, 4); sctx.fill();
+  // hot surface
+  const hot = p.on && p.watts > 0;
+  const glow = hot ? Math.min(1, p.watts / 1000) : 0;
+  sctx.fillStyle = hot ? `rgb(${150 + 90 * glow},${60 + 20 * glow},${40})` : '#5a5d5a';
+  sctx.beginPath(); sctx.ellipse(x, topY + 2, PLATE.w / 2 - 6, 6, 0, 0, Math.PI * 2); sctx.fill();
+  // indicator + label
+  sctx.fillStyle = hot ? '#e0552e' : '#7a7d75';
+  sctx.beginPath(); sctx.arc(x - PLATE.w / 2 + 12, topY + PLATE.h + 6, 3.5, 0, Math.PI * 2); sctx.fill();
+  sctx.fillStyle = '#e9eae5'; sctx.font = `10px ${MONO}`; sctx.textAlign = 'left';
+  sctx.fillText(`${p.on ? p.watts : 0} W`, x - PLATE.w / 2 + 20, topY + PLATE.h + 9);
+}
+
+function drawBeaker(b) {
+  const g = beakerGeom(b);
+  const { left, right, cx, topY, baseY } = g;
+  const rx = BEAKER.w / 2, ry = 10;
+  const water = sim.get(b.body);
+
+  // shadow under beaker
+  sctx.fillStyle = 'rgba(0,0,0,0.08)';
+  sctx.beginPath(); sctx.ellipse(cx, baseY + 3, rx * 0.9, 6, 0, 0, Math.PI * 2); sctx.fill();
+
+  // water body (with surface ellipse) drawn behind the glass front
+  if (water && water.mass > 1e-4) {
+    const t = water.temp;
+    // colour: cool blue -> warm; simple legible tint
+    const warm = Math.max(0, Math.min(1, (t - 20) / 80));
+    const top = `rgba(${70 + warm * 120},${150 - warm * 40},${200 - warm * 60},0.55)`;
+    const bot = `rgba(${40 + warm * 120},${110 - warm * 30},${170 - warm * 50},0.72)`;
+    const grad = sctx.createLinearGradient(0, g.waterTop, 0, g.waterBottom);
+    grad.addColorStop(0, top); grad.addColorStop(1, bot);
+    sctx.fillStyle = grad;
+    sctx.beginPath();
+    sctx.moveTo(left + BEAKER.wall, g.waterTop);
+    sctx.lineTo(left + BEAKER.wall, g.waterBottom);
+    sctx.lineTo(right - BEAKER.wall, g.waterBottom);
+    sctx.lineTo(right - BEAKER.wall, g.waterTop);
+    sctx.closePath(); sctx.fill();
+    // surface ellipse
+    sctx.fillStyle = `rgba(${90 + warm * 120},${170 - warm * 40},${210 - warm * 50},0.75)`;
+    sctx.beginPath(); sctx.ellipse(cx, g.waterTop, rx - BEAKER.wall, ry - 4, 0, 0, Math.PI * 2); sctx.fill();
+
+    if (t >= 99.5) drawBubbles(g, rx);
+  }
+  // ice floating in this beaker's water (drawn as small blocks near the surface)
+  for (const it of items) {
+    if (it.kind === 'ice' && it.inWater && it.host === b.body) drawIce(it, true);
+  }
+
+  // steam when this beaker is boiling
+  const steam = steamFor(b);
+  if ((water && water.temp >= 99.5 && water.mass > 1e-4) || steam) drawSteam(g);
+
+  // glass front: subtle gradient, elliptical rim
+  const glass = sctx.createLinearGradient(left, 0, right, 0);
+  glass.addColorStop(0, 'rgba(255,255,255,0.10)');
+  glass.addColorStop(0.15, 'rgba(255,255,255,0.30)');
+  glass.addColorStop(0.5, 'rgba(210,220,220,0.05)');
+  glass.addColorStop(1, 'rgba(120,130,130,0.14)');
+  sctx.fillStyle = glass;
+  sctx.beginPath();
+  sctx.moveTo(left, topY); sctx.lineTo(left, baseY); sctx.lineTo(right, baseY); sctx.lineTo(right, topY);
+  sctx.closePath(); sctx.fill();
+
+  sctx.strokeStyle = 'rgba(60,70,70,0.55)'; sctx.lineWidth = 1.5;
+  sctx.beginPath(); sctx.moveTo(left, topY); sctx.lineTo(left, baseY); sctx.stroke();
+  sctx.beginPath(); sctx.moveTo(right, topY); sctx.lineTo(right, baseY); sctx.stroke();
+  // base
+  sctx.beginPath(); sctx.ellipse(cx, baseY, rx, ry, 0, 0, Math.PI); sctx.stroke();
+  // rim ellipse
+  sctx.strokeStyle = 'rgba(60,70,70,0.7)';
+  sctx.beginPath(); sctx.ellipse(cx, topY, rx, ry, 0, 0, Math.PI * 2); sctx.stroke();
+
+  // graduation ticks
+  sctx.strokeStyle = 'rgba(60,70,70,0.35)'; sctx.lineWidth = 1;
+  for (let i = 1; i <= 4; i++) {
+    const y = baseY - BEAKER.wall - (BEAKER.h - BEAKER.wall - 6) * (i / 5);
+    sctx.beginPath(); sctx.moveTo(right - 14, y); sctx.lineTo(right - 4, y); sctx.stroke();
+  }
+
+  // clear temperature + phase readout pinned above the beaker
+  if (water && water.mass > 1e-4) {
+    const boiling = water.temp >= 99.5;
+    const lab = `${water.temp.toFixed(1)} °C`;
+    const state = boiling ? 'boiling' : `water · ${(water.mass * 1000).toFixed(0)} g`;
+    sctx.font = `bold 15px ${MONO}`; sctx.textAlign = 'center'; sctx.textBaseline = 'alphabetic';
+    const tw = Math.max(sctx.measureText(lab).width, 78) + 20;
+    const py = topY - 26, px = cx - tw / 2;
+    sctx.fillStyle = 'rgba(255,255,255,0.9)'; sctx.strokeStyle = 'rgba(60,70,70,0.35)'; sctx.lineWidth = 1;
+    sctx.beginPath(); sctx.roundRect(px, py, tw, 34, 5); sctx.fill(); sctx.stroke();
+    const warm = Math.max(0, Math.min(1, (water.temp - 20) / 80));
+    sctx.fillStyle = `rgb(${40 + warm * 150},${90 - warm * 40},${170 - warm * 120})`;
+    sctx.fillText(lab, cx, py + 16);
+    sctx.fillStyle = '#8a8471'; sctx.font = `9px ${MONO}`;
+    sctx.fillText(state, cx, py + 28);
+  }
+}
+
+function drawBubbles(g, rx) {
+  const now = performance.now() / 300;
+  sctx.fillStyle = 'rgba(255,255,255,0.7)';
+  for (let i = 0; i < 10; i++) {
+    const phase = (now + i * 0.9) % 1;
+    const bx = g.cx + Math.sin(i * 2.3) * (rx - 16);
+    const by = g.waterBottom - phase * (g.waterBottom - g.waterTop);
+    const r = 1.4 + (i % 3);
+    sctx.beginPath(); sctx.arc(bx, by, r * (0.5 + phase * 0.5), 0, Math.PI * 2); sctx.fill();
+  }
+}
+
+function drawSteam(g) {
+  const now = performance.now() / 600;
+  sctx.save();
+  for (let i = 0; i < 5; i++) {
+    const phase = (now + i * 0.6) % 1;
+    const x = g.cx + Math.sin((i + phase) * 2) * 22;
+    const y = g.topY - phase * 78;
+    sctx.globalAlpha = 0.28 * (1 - phase);
+    sctx.fillStyle = '#cfd6d4';
+    sctx.beginPath(); sctx.ellipse(x, y, 10 + phase * 12, 7 + phase * 9, 0, 0, Math.PI * 2); sctx.fill();
+  }
+  sctx.restore();
+}
+
+function drawIce(it, inWater) {
+  const s = iceSize(it);
+  const body = sim.get(it.body);
+  if (!body || body.mass <= 1e-4) return;
+  const x = it.x, y = it.y;
+  const sub = body.temp < -0.5;
+  sctx.save();
+  sctx.translate(x, y);
+  sctx.fillStyle = inWater ? 'rgba(226,242,250,0.85)' : 'rgba(222,240,247,0.95)';
+  sctx.strokeStyle = sub ? 'rgba(120,170,210,0.9)' : 'rgba(150,190,215,0.9)';
+  sctx.lineWidth = 1.2;
+  sctx.beginPath(); sctx.roundRect(-s / 2, -s / 2, s, s, 3); sctx.fill(); sctx.stroke();
+  // facet
+  sctx.strokeStyle = 'rgba(255,255,255,0.8)';
+  sctx.beginPath(); sctx.moveTo(-s / 2 + 3, -s / 2 + 3); sctx.lineTo(-s / 2 + 3, s / 2 - 3); sctx.lineTo(s / 2 - 3, s / 2 - 3); sctx.stroke();
+  if (sub) {
+    sctx.fillStyle = '#1c4ea8'; sctx.font = `8px ${MONO}`; sctx.textAlign = 'center';
+    sctx.fillText(body.temp.toFixed(0) + '°', 0, 2);
+  }
+  sctx.restore();
+}
+
+function drawProbe(pr) {
+  const i = probes.indexOf(pr);
+  const color = probeColor(i), label = probeLabel(i);
+  const tip = probeTip(pr);
+  // cable
+  sctx.strokeStyle = color; sctx.lineWidth = 3;
+  sctx.beginPath(); sctx.moveTo(pr.x, pr.y - 16); sctx.lineTo(pr.x, tip.y); sctx.stroke();
+  // tip bulb
+  sctx.fillStyle = color;
+  sctx.beginPath(); sctx.arc(tip.x, tip.y, 4.5, 0, Math.PI * 2); sctx.fill();
+  // handle
+  sctx.fillStyle = '#2b2e2b';
+  sctx.beginPath(); sctx.roundRect(pr.x - 9, pr.y - 30, 18, 16, 3); sctx.fill();
+  sctx.fillStyle = '#e9eae5'; sctx.font = `9px ${MONO}`; sctx.textAlign = 'center';
+  sctx.fillText(label, pr.x, pr.y - 19);
+  // reading
+  const val = sim.probe(pr.probeIdx).temp_c;
+  sctx.fillStyle = color; sctx.font = `bold 11px ${MONO}`; sctx.textAlign = 'center';
+  sctx.fillText(val.toFixed(1) + '°C', pr.x, pr.y - 34);
+}
+
+// ---------------------------------------------------------------------------
+// Chart
+// ---------------------------------------------------------------------------
+
+const chart = document.getElementById('chart');
+const cctx = chart.getContext('2d');
+const CW = chart.width, CH = chart.height;
+const PAD = { l: 44, r: 14, t: 14, b: 26 };
+
+function drawChart() {
+  cctx.clearRect(0, 0, CW, CH);
+  const x0 = PAD.l, x1 = CW - PAD.r, y0 = CH - PAD.b, y1 = PAD.t;
+  const tMax = Math.max(30, samples.length ? samples[samples.length - 1].t : 0);
+  const yMin = -5, yMax = 110;
+  const sx = (t) => x0 + (x1 - x0) * (t / tMax);
+  const sy = (v) => y0 + (y1 - y0) * ((v - yMin) / (yMax - yMin));
+
+  // gridlines + y labels (engineering paper)
+  cctx.strokeStyle = '#e4e7de'; cctx.fillStyle = '#7a7d75';
+  cctx.lineWidth = 1; cctx.font = `10px ${MONO}`; cctx.textAlign = 'right'; cctx.textBaseline = 'middle';
+  for (let v = 0; v <= 100; v += 20) {
+    const y = sy(v);
+    cctx.beginPath(); cctx.moveTo(x0, y); cctx.lineTo(x1, y); cctx.stroke();
+    cctx.fillText(v + '°', x0 - 6, y);
+  }
+  // phase-change reference lines
+  for (const [v, col, lab] of [[100, '#a8311c', 'boil 100°'], [0, '#1c4ea8', 'melt 0°']]) {
+    cctx.strokeStyle = col; cctx.globalAlpha = 0.35; cctx.setLineDash([4, 4]);
+    cctx.beginPath(); cctx.moveTo(x0, sy(v)); cctx.lineTo(x1, sy(v)); cctx.stroke();
+    cctx.setLineDash([]); cctx.globalAlpha = 1;
+    cctx.fillStyle = col; cctx.textAlign = 'left';
+    cctx.fillText(lab, x0 + 4, sy(v) - 7);
+  }
+  // axes
+  cctx.strokeStyle = '#9aa093'; cctx.lineWidth = 1.2;
+  cctx.beginPath(); cctx.moveTo(x0, y1); cctx.lineTo(x0, y0); cctx.lineTo(x1, y0); cctx.stroke();
+  // x labels
+  cctx.fillStyle = '#7a7d75'; cctx.textAlign = 'center'; cctx.textBaseline = 'top';
+  const ticks = 5;
+  for (let i = 0; i <= ticks; i++) {
+    const t = (tMax / ticks) * i;
+    const lab = t >= 90 ? (t / 60).toFixed(1) + 'm' : t.toFixed(0) + 's';
+    cctx.fillText(lab, sx(t), y0 + 6);
+  }
+
+  // series
+  for (let s = 0; s < probes.length; s++) {
+    cctx.strokeStyle = probeColor(s); cctx.lineWidth = 1.8; cctx.beginPath();
+    let started = false;
+    for (const smp of samples) {
+      const v = smp.temps[s];
+      if (v == null || Number.isNaN(v)) continue;
+      const X = sx(smp.t), Y = sy(v);
+      if (!started) { cctx.moveTo(X, Y); started = true; } else cctx.lineTo(X, Y);
+    }
+    cctx.stroke();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Loop
+// ---------------------------------------------------------------------------
+
+let last = 0;
+function frame(now) {
+  const dtReal = last ? Math.min(0.05, (now - last) / 1000) : 0;   // cap catch-up
+  last = now;
+  if (running) {
+    const dtSim = dtReal * speed;
+    wireContacts();
+    sim.step(dtSim);
+    sampleAcc += dtSim;
+    while (sampleAcc >= SAMPLE_DT) {
+      samples.push({ t: sim.time, temps: probes.map((p) => sim.probe(p.probeIdx).temp_c) });
+      sampleAcc -= SAMPLE_DT;
+    }
+  } else {
+    wireContacts();     // keep probe targets/readouts fresh while paused
+  }
+  ui.clock.textContent = `t = ${sim.time.toFixed(1)} s`;
+  syncReadouts();
+  draw();
+  drawChart();
+  requestAnimationFrame(frame);
+}
+
+function syncReadouts() {
+  const names = { water: 'water', ice: 'ice', steam: 'steam', air: 'air' };
+  ui.readouts.innerHTML = probes.map((p, i) => {
+    const v = sim.probe(p.probeIdx).temp_c;
+    const col = probeColor(i);
+    return `<div class="r"><span class="dot" style="background:${col}"></span>${probeLabel(i)} <span style="color:#7a7d75">(${names[p.reads] || 'air'})</span> <span class="val" style="color:${col}">${v.toFixed(1)} °C</span></div>`;
+  }).join('');
+}
+
+// ---------------------------------------------------------------------------
+// Interaction: drag from dock, drag placed items + probes
+// ---------------------------------------------------------------------------
+
+function scenePoint(e) {
+  const r = scene.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * (W / r.width), y: (e.clientY - r.top) * (H / r.height) };
+}
+
+// Pull a fresh object out of a supply-shelf tile. Returns the new draggable
+// object so the caller can keep it under the cursor.
+function spawnFromPalette(kind, x, y) {
+  if (kind === 'ice') {
+    const id = sim.add({ type: 'ice', kg: DEF.ice.g / 1000, T: 0, hA: 0.4 });
+    const it = { kind: 'ice', body: id, x, y, uid: uid(), massG: DEF.ice.g };
+    items.push(it); renderControls();
+    return it;
+  }
+  if (kind === 'beaker') {
+    const id = sim.add({ type: 'beaker', water_kg: DEF.beaker.g / 1000, T: DEF.beaker.c, hA: 0.9 });
+    const it = { kind: 'beaker', body: id, x, y: PLATE.topY, onPlate: false, uid: uid(), waterG: DEF.beaker.g, startC: DEF.beaker.c };
+    items.push(it); renderControls();
+    return it;
+  }
+  if (kind === 'plate') {
+    const id = sim.add({ type: 'hotplate', watts: DEF.plate.watts, on: DEF.plate.on });
+    const it = { kind: 'plate', body: id, x, y: PLATE.topY, uid: uid(), watts: DEF.plate.watts, on: DEF.plate.on };
+    items.push(it); renderControls();
+    return it;
+  }
+  // probe
+  addProbe(x, y); renderControls();
+  return probes[probes.length - 1];
+}
+
+// If an ice cube is released over the beaker, drop it neatly to the surface.
+function snapIce(it) {
+  for (const b of beakers()) {
+    const g = beakerGeom(b);
+    if (it.x > g.left && it.x < g.right) { it.x = b.x; it.y = g.waterTop + 6; return; }
+  }
+}
+
+// Set a beaker down: it rests on the bench surface, and locks onto a hot plate
+// (centred) whenever its footprint overlaps one.
+function settleBeaker(o) {
+  // Lowered onto a hot plate, the beaker seats on the plate top and centres on
+  // it. Otherwise it stays exactly where you release it — lift it up and it stays
+  // up — but it can't sink below the bench, and it rests flush on the bench
+  // surface (never hovering) when you set it down there.
+  o.x = Math.max(BEAKER.w / 2, Math.min(W - BEAKER.w / 2, o.x));
+  const p = o.y > PLATE.topY - 30 ? plateUnder(o.x) : null;
+  if (p) {
+    o.x = p.x; o.y = PLATE.topY; o.onPlate = true;
+  } else {
+    o.onPlate = false;
+    o.y = Math.max(BEAKER.h, Math.min(BENCH_Y, o.y));
+  }
+}
+
+// Set a hot plate down: it always rests on the bench, clamped within view.
+function settlePlate(o) {
+  o.x = Math.max(PLATE.w / 2, Math.min(W - PLATE.w / 2, o.x));
+  o.y = PLATE.topY;
+}
+
+// The shelf band is the area below the bench. Dragging an object down into it
+// returns it to the supply shelf — i.e. removes it, freeing that slot.
+const overShelf = (py) => py > BENCH_Y + 14;
+
+function removeObject(obj) {
+  if (obj.kind === 'probe') {
+    probes = probes.filter((p) => p !== obj);
+    sim.setProbeTarget(obj.probeIdx, null);   // park the parked sim probe on ambient
+  } else {
+    sim.remove(obj.body);                      // beaker (water body) or ice body
+    items = items.filter((it) => it !== obj);
+  }
+  renderControls();
+}
+
+// Drag placed items / probes, or pull new ones from the shelf.
+let dragging = null;
+scene.addEventListener('pointerdown', (e) => {
+  const p = scenePoint(e);
+  // supply shelf: pointing at an enabled tile spawns a fresh object to drag
+  const tile = tileAt(p.x, p.y);
+  if (tile && paletteEnabled(tile.kind)) {
+    const obj = spawnFromPalette(tile.kind, p.x, p.y - 60);
+    // A fresh item can't be deleted until it has cleared the shelf band, so
+    // pulling one out and releasing it (cursor still low) keeps it, not deletes.
+    dragging = { obj, dx: 0, dy: 0, fromShelf: true, armed: false };
+    scene.setPointerCapture(e.pointerId);
+    return;
+  }
+  // probes first (they sit on top)
+  for (const pr of probes) {
+    if (Math.abs(p.x - pr.x) < 14 && p.y > pr.y - 34 && p.y < pr.y + 50) { dragging = { obj: pr, dx: p.x - pr.x, dy: p.y - pr.y, armed: true }; scene.setPointerCapture(e.pointerId); return; }
+  }
+  for (const it of items) {
+    if (it.kind === 'beaker') { const g = beakerGeom(it); if (p.x > g.left && p.x < g.right && p.y > g.topY && p.y < g.baseY) { dragging = { obj: it, dx: p.x - it.x, dy: p.y - it.y, armed: true }; scene.setPointerCapture(e.pointerId); return; } }
+    if (it.kind === 'ice') { const s = iceSize(it); if (Math.abs(p.x - it.x) < s && Math.abs(p.y - it.y) < s) { dragging = { obj: it, dx: p.x - it.x, dy: p.y - it.y, armed: true }; scene.setPointerCapture(e.pointerId); return; } }
+    if (it.kind === 'plate') { if (Math.abs(p.x - it.x) < PLATE.w / 2 && p.y > it.y - 4 && p.y < it.y + PLATE.h + 16) { dragging = { obj: it, dx: p.x - it.x, dy: p.y - it.y, armed: true }; scene.setPointerCapture(e.pointerId); return; } }
+  }
+});
+scene.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  const p = scenePoint(e);
+  dragging.moved = true;
+  dragging.overShelf = overShelf(p.y);        // hovering the shelf => release to remove
+  if (!dragging.overShelf) dragging.armed = true;   // cleared the shelf => deletable on return
+  const o = dragging.obj;
+  o.x = p.x - dragging.dx;
+  o.y = p.y - dragging.dy;                     // full 2D follow, exactly like the ice cube
+  if (o.kind === 'beaker') o.onPlate = false;  // lifted while dragging; it re-seats on release
+});
+scene.addEventListener('pointerup', (e) => {
+  if (dragging) {
+    const o = dragging.obj;
+    if (dragging.armed && overShelf(scenePoint(e).y)) {
+      removeObject(o);                        // dragged back onto the shelf => remove it
+    } else if (o.kind === 'ice') {
+      snapIce(o);
+    } else if (o.kind === 'beaker') {
+      settleBeaker(o);                        // set it down on the bench, locking to the plate
+    } else if (o.kind === 'plate') {
+      settlePlate(o);                         // set it down on the bench
+    }
+  }
+  dragging = null;
+});
+scene.style.cursor = 'default';
+
+// ---------------------------------------------------------------------------
+// Controls
+// ---------------------------------------------------------------------------
+
+// --- Dynamic per-item controls --------------------------------------------
+// Each placed item owns its own sliders. Cards are (re)built only when items are
+// added or removed — never mid-drag — so a slider you are dragging stays live.
+const elc = (tag, cls) => { const e = document.createElement(tag); if (cls) e.className = cls; return e; };
+
+function sliderRow(labelText, unit, min, max, step, value, onval) {
+  const row = elc('div', 'ctrl');
+  const label = elc('label');
+  const b = document.createElement('b');
+  b.textContent = value + unit;
+  label.append(document.createTextNode(labelText + ' '), b);
+  const input = document.createElement('input');
+  input.type = 'range'; input.min = min; input.max = max; input.step = step; input.value = value;
+  input.addEventListener('input', () => { b.textContent = input.value + unit; onval(+input.value); });
+  row.append(label, input);
+  return row;
+}
+
+// Setup edits (water mass/temp, ice mass) only push into the sim while a run has
+// not started, so a live run is never disturbed mid-flight.
+function applyIfIdle(fn) { if (!running) fn(); }
+
+function cardHead(swatchColor, name, round) {
+  const head = elc('div', 'item-head');
+  const sw = elc('span', 'swatch'); sw.style.background = swatchColor; if (round) sw.style.borderRadius = '50%';
+  const label = document.createElement('span'); label.textContent = name;
+  head.append(sw, label);
+  return head;
+}
+
+function plateCard(it, i) {
+  const card = elc('div', 'item-card');
+  const head = cardHead('#e0552e', 'Hot plate ' + (i + 1));
+  const btn = elc('button', 'mini'); btn.textContent = it.on ? 'ON' : 'OFF'; btn.classList.toggle('on', it.on);
+  btn.addEventListener('click', () => { it.on = !it.on; btn.textContent = it.on ? 'ON' : 'OFF'; btn.classList.toggle('on', it.on); });
+  head.appendChild(btn);
+  card.append(head, sliderRow('Power', ' W', 0, 1000, 10, it.watts, (v) => it.watts = v));
+  return card;
+}
+
+function beakerCard(it, i) {
+  const card = elc('div', 'item-card');
+  card.append(
+    cardHead('#4696c8', 'Beaker ' + (i + 1)),
+    sliderRow('Water', ' g', 50, 500, 10, it.waterG, (v) => { it.waterG = v; applyIfIdle(() => { const w = sim.get(it.body); if (w) w.mass = v / 1000; }); }),
+    sliderRow('Start temp', ' °C', 0, 95, 1, it.startC, (v) => { it.startC = v; applyIfIdle(() => { const w = sim.get(it.body); if (w) w.temp = v; }); }));
+  return card;
+}
+
+function iceCard(it, i) {
+  const card = elc('div', 'item-card');
+  card.append(
+    cardHead('#bfe3f2', 'Ice ' + (i + 1)),
+    sliderRow('Ice mass', ' g', 10, 200, 5, it.massG, (v) => { it.massG = v; applyIfIdle(() => { const b = sim.get(it.body); if (b) b.mass = v / 1000; }); }));
+  return card;
+}
+
+function probeCard(pr, i) {
+  const card = elc('div', 'item-card');
+  const note = elc('div', 'empty'); note.textContent = 'reads its surroundings — no settings';
+  card.append(cardHead(probeColor(i), 'Probe ' + (i + 1) + ' (' + probeLabel(i) + ')', true), note);
+  return card;
+}
+
+function renderControls() {
+  const host = document.getElementById('itemControls');
+  host.innerHTML = '';
+  plates().forEach((it, i) => host.appendChild(plateCard(it, i)));
+  beakers().forEach((it, i) => host.appendChild(beakerCard(it, i)));
+  iceItems().forEach((it, i) => host.appendChild(iceCard(it, i)));
+  probes.forEach((pr, i) => host.appendChild(probeCard(pr, i)));
+}
+
+ui.play.addEventListener('click', () => {
+  running = !running;
+  ui.play.textContent = running ? '❚❚ Pause' : '▶ Play';
+  ui.play.classList.toggle('primary', !running);
+});
+
+document.querySelectorAll('#speed button').forEach((b) => b.addEventListener('click', () => {
+  speed = +b.dataset.x;
+  document.querySelectorAll('#speed button').forEach((x) => x.classList.toggle('on', x === b));
+}));
+
+document.getElementById('reset').addEventListener('click', () => {
+  running = false; ui.play.textContent = '▶ Play'; ui.play.classList.add('primary');
+  buildScene();
+});
+
+document.getElementById('csv').addEventListener('click', () => {
+  const header = ['t_s', ...probes.map((p, i) => `${probeLabel(i)}_temp_c`)].join(',');
+  const rows = samples.map((s) => [s.t.toFixed(3), ...s.temps.map((v) => v == null ? '' : v.toFixed(3))].join(','));
+  const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'temperature-run.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// Boot.
+buildScene();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

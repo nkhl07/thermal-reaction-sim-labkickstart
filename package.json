@@ -1,0 +1,13 @@
+{
+  "name": "temperature-sim",
+  "version": "1.0.0",
+  "description": "Thermal physics sandbox — the software twin of the LABKickstart temperature probe.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "build": "node build.js",
+    "start": "node --version >/dev/null && python3 -m http.server 8080"
+  },
+  "license": "UNLICENSED"
+}
+ 
